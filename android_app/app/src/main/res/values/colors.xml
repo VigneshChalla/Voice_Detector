@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="bg_dark">#FF0A0A1A</color>
+    <color name="card_bg">#FF12122A</color>
+    <color name="accent_blue">#FF00D4FF</color>
+    <color name="accent_purple">#FF7B2FF7</color>
+    <color name="risk_high">#FFFF4444</color>
+    <color name="risk_medium">#FFFFAA00</color>
+    <color name="risk_low">#FF00FF88</color>
+    <color name="text_primary">#FFFFFFFF</color>
+    <color name="text_secondary">#FF888888</color>
+</resources>

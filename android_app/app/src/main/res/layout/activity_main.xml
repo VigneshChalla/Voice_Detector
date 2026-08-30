@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#0A0A1A"
+    android:padding="24dp"
+    android:gravity="center_horizontal">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Voice Clone Detector"
+        android:textSize="28sp"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"
+        android:layout_marginTop="40dp"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="AI-Powered Detection"
+        android:textSize="14sp"
+        android:textColor="#888888"
+        android:layout_marginBottom="40dp"/>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        app:boxBackgroundColor="#12122A"
+        app:boxStrokeColor="#1E1E3F"
+        app:hintTextColor="#00D4FF"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/serverInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Server IP (e.g. 192.168.1.100)"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555555"
+            android:inputType="textUri"
+            android:padding="16dp"/>
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="24dp"
+        app:boxBackgroundColor="#12122A"
+        app:boxStrokeColor="#1E1E3F"
+        app:hintTextColor="#00D4FF"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/apiKeyInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="API Key"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#555555"
+            android:inputType="textPassword"
+            android:padding="16dp"/>
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <Button
+        android:id="@+id/connectButton"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Connect & Start"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#7B2FF7"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Make sure your phone and PC are on the same WiFi network."
+        android:textSize="12sp"
+        android:textColor="#555555"
+        android:gravity="center"
+        android:layout_marginTop="8dp"/>
+
+</LinearLayout>

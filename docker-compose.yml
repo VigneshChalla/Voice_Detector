@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  voice-detection:
+    build: .
+    container_name: voice-detection-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./voice_detection_app/trained_model.pth:/app/voice_detection_app/trained_model.pth:ro
+      - ./voice_detection_app/trained_model.onnx:/app/voice_detection_app/trained_model.onnx:ro
+    environment:
+      - VD_HOST=0.0.0.0
+      - VD_PORT=8000
+      - VD_DEBUG=false
+      - VD_API_KEY=${VD_API_KEY:-vd_default_key_2024}
+      - VD_RATE_LIMIT_MINUTE=60
+      - VD_RATE_LIMIT_HOUR=1000
+      - VD_STORE_RAW_AUDIO=false
+      - VD_ANONYMIZE_CALLER_ID=true
+      - VD_LOG_LEVEL=INFO
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+    networks:
+      - voice-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: voice-detection-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - voice-net
+
+volumes:
+  redis-data:
+
+networks:
+  voice-net:
+    driver: bridge

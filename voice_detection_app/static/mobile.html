@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Voice Clone Detector</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a1a;
+            color: #fff;
+            min-height: 100vh;
+            padding: 16px;
+        }
+        .header {
+            text-align: center;
+            padding: 20px 0;
+        }
+        .header h1 {
+            font-size: 22px;
+            background: linear-gradient(135deg, #00d4ff, #7b2ff7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p { color: #888; font-size: 13px; margin-top: 4px; }
+        .card {
+            background: #12122a;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid #1e1e3f;
+        }
+        .card h2 {
+            font-size: 16px;
+            color: #aaa;
+            margin-bottom: 12px;
+        }
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #1a1a35;
+            border-radius: 10px;
+            margin-bottom: 16px;
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #ff4444;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .status-dot.connected { background: #00ff88; }
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-bottom: 10px;
+            transition: all 0.2s;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-record {
+            background: linear-gradient(135deg, #ff4444, #ff6b6b);
+            color: #fff;
+        }
+        .btn-record.recording {
+            background: linear-gradient(135deg, #ff0000, #cc0000);
+            animation: pulse 1s infinite;
+        }
+        .btn-detect {
+            background: linear-gradient(135deg, #00d4ff, #7b2ff7);
+            color: #fff;
+        }
+        .btn-detect:disabled {
+            background: #333;
+            color: #666;
+        }
+        .btn-secondary {
+            background: #1e1e3f;
+            color: #aaa;
+            font-size: 14px;
+            padding: 12px;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .result-box {
+            display: none;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .result-box.genuine { background: linear-gradient(135deg, #0a3d0a, #1a4a1a); border: 1px solid #00ff88; }
+        .result-box.synthetic { background: linear-gradient(135deg, #3d0a0a, #4a1a1a); border: 1px solid #ff4444; }
+        .result-box.uncertain { background: linear-gradient(135deg, #3d3d0a, #4a4a1a); border: 1px solid #ffaa00; }
+        .result-label {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 8px 0;
+        }
+        .result-score {
+            font-size: 48px;
+            font-weight: 700;
+            margin: 10px 0;
+        }
+        .result-box.genuine .result-score { color: #00ff88; }
+        .result-box.synthetic .result-score { color: #ff4444; }
+        .result-box.uncertain .result-score { color: #ffaa00; }
+        .result-detail {
+            font-size: 13px;
+            color: #aaa;
+            margin-top: 8px;
+        }
+        .meter {
+            height: 6px;
+            background: #1e1e3f;
+            border-radius: 3px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+        .meter-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s, background 0.3s;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #1e1e3f;
+            font-size: 14px;
+        }
+        .info-row:last-child { border: none; }
+        .info-label { color: #888; }
+        .info-value { color: #fff; font-weight: 500; }
+        .history-item {
+            padding: 12px;
+            background: #1a1a35;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .history-item .time { color: #666; font-size: 11px; }
+        .history-item .risk { font-weight: 600; }
+        .history-item .risk.HIGH { color: #ff4444; }
+        .history-item .risk.MEDIUM { color: #ffaa00; }
+        .history-item .risk.LOW { color: #00ff88; }
+        .settings-input {
+            width: 100%;
+            padding: 12px;
+            background: #1a1a35;
+            border: 1px solid #1e1e3f;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .settings-input::placeholder { color: #555; }
+        .hidden { display: none !important; }
+        .audio-visualizer {
+            height: 60px;
+            background: #1a1a35;
+            border-radius: 8px;
+            margin: 12px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+        }
+        .bar {
+            width: 4px;
+            background: #00d4ff;
+            border-radius: 2px;
+            transition: height 0.1s;
+        }
+        .recording .bar { animation: audioBar 0.5s ease-in-out infinite alternate; }
+        @keyframes audioBar {
+            from { height: 8px; }
+            to { height: 40px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Voice Clone Detector</h1>
+        <p>AI-Powered Real-Time Detection</p>
+    </div>
+
+    <div id="micWarning" class="card" style="display:none;background:#3d2a0a;border-color:#ffaa00">
+        <h2 style="color:#ffaa00">⚠️ HTTPS Required for Microphone</h2>
+        <p style="color:#ccc;font-size:13px;line-height:1.5">
+            Your browser may block microphone on HTTP.<br><br>
+            <b>Options:</b><br>
+            • Use Chrome and tap "Allow" when prompted<br>
+            • Or access via: <code style="color:#00d4ff">https://YOUR_IP:8000/mobile</code><br>
+            • Or use localhost on your PC: <code style="color:#00d4ff">http://localhost:8000/mobile</code>
+        </p>
+    </div>
+
+    <div class="status-bar">
+        <div>
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Disconnected</span>
+        </div>
+        <span id="serverUrl" style="color:#555;font-size:12px;"></span>
+    </div>
+
+    <!-- Settings Card -->
+    <div class="card" id="settingsCard">
+        <h2>Server Settings</h2>
+        <input class="settings-input" id="serverInput" placeholder="http://192.168.1.100:8000" value="">
+        <input class="settings-input" id="apiKeyInput" placeholder="API Key (vd_dev_key_2024)" value="vd_dev_key_2024">
+        <button class="btn btn-detect" onclick="connectToServer()">Connect</button>
+    </div>
+
+    <!-- Main Interface -->
+    <div id="mainInterface" class="hidden">
+        <!-- Record Card -->
+        <div class="card">
+            <h2>Record Audio</h2>
+            <div class="audio-visualizer" id="visualizer">
+                <div class="bar" style="height:8px"></div>
+                <div class="bar" style="height:12px"></div>
+                <div class="bar" style="height:8px"></div>
+                <div class="bar" style="height:16px"></div>
+                <div class="bar" style="height:8px"></div>
+            </div>
+            <button class="btn btn-record" id="recordBtn" onclick="toggleRecord()">
+                Start Recording
+            </button>
+            <button class="btn btn-detect" id="detectBtn" onclick="analyzeAudio()" disabled>
+                Analyze Voice
+            </button>
+            <button class="btn btn-secondary" onclick="clearResult()">Clear</button>
+        </div>
+
+        <!-- Result Card -->
+        <div class="card" id="resultCard" style="display:none">
+            <h2>Detection Result</h2>
+            <div class="result-box" id="resultBox">
+                <div id="resultIcon" style="font-size:40px"></div>
+                <div class="result-label" id="resultLabel"></div>
+                <div class="result-score" id="resultScore"></div>
+                <div class="meter">
+                    <div class="meter-fill" id="meterFill"></div>
+                </div>
+                <div class="result-detail" id="resultDetail"></div>
+            </div>
+            <div style="margin-top:12px">
+                <div class="info-row">
+                    <span class="info-label">Synthetic Probability</span>
+                    <span class="info-value" id="infoSynthProb">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Risk Level</span>
+                    <span class="info-value" id="infoRiskLevel">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Recommendation</span>
+                    <span class="info-value" id="infoRecommendation" style="font-size:12px;text-align:right;max-width:60%">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- WebSocket Streaming Card -->
+        <div class="card">
+            <h2>Live Stream Detection</h2>
+            <p style="color:#666;font-size:12px;margin-bottom:12px">Streams audio in real-time via WebSocket</p>
+            <input class="settings-input" id="callerIdInput" placeholder="Caller ID (optional)" value="">
+            <button class="btn btn-record" id="streamBtn" onclick="toggleStream()">
+                Start Live Stream
+            </button>
+            <div id="streamResults" style="margin-top:12px"></div>
+        </div>
+
+        <!-- History Card -->
+        <div class="card">
+            <h2>Recent Scans</h2>
+            <div id="historyList">
+                <p style="color:#555;font-size:13px;text-align:center;padding:20px">No scans yet</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let audioBlob = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let isStreaming = false;
+        let ws = null;
+        let history = [];
+        let serverUrl = '';
+        let apiKey = '';
+
+        // Check secure context on load
+        checkSecureContext();
+
+        function connectToServer() {
+            serverUrl = document.getElementById('serverInput').value.replace(/\/$/, '');
+            apiKey = document.getElementById('apiKeyInput').value;
+
+            fetch(`${serverUrl}/api/v1/health`, {
+                headers: { 'X-API-Key': apiKey }
+            })
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('statusDot').classList.add('connected');
+                document.getElementById('statusText').textContent = 'Connected';
+                document.getElementById('serverUrl').textContent = serverUrl;
+                document.getElementById('settingsCard').innerHTML = `
+                    <h2>Server Settings</h2>
+                    <div class="info-row">
+                        <span class="info-label">Status</span>
+                        <span class="info-value" style="color:#00ff88">Connected</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Model Loaded</span>
+                        <span class="info-value">${data.model_loaded ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Edge Inference</span>
+                        <span class="info-value">${data.edge_inference_available ? 'Available' : 'N/A'}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Enrolled Speakers</span>
+                        <span class="info-value">${data.enrolled_speakers}</span>
+                    </div>
+                `;
+                document.getElementById('mainInterface').classList.remove('hidden');
+            })
+            .catch(err => {
+                document.getElementById('statusText').textContent = 'Connection failed';
+                alert('Cannot connect to server. Make sure:\n1. Server is running\n2. IP address is correct\n3. Phone and PC are on same WiFi');
+            });
+        }
+
+        // Check secure context
+        function checkSecureContext() {
+            if (!window.isSecureContext) {
+                document.getElementById('micWarning').style.display = 'block';
+            }
+        }
+
+        async function requestMicPermission() {
+            // First check if permission is already granted
+            try {
+                if (navigator.permissions) {
+                    const result = await navigator.permissions.query({ name: 'microphone' });
+                    if (result.state === 'granted') {
+                        return true;
+                    }
+                    if (result.state === 'denied') {
+                        alert('Microphone was denied.\n\nTo fix:\n• Tap the lock icon in the address bar\n• Set Microphone to "Allow"\n• Refresh the page');
+                        return false;
+                    }
+                }
+            } catch(e) {}
+
+            // Try to get stream to trigger permission prompt
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                stream.getTracks().forEach(t => t.stop());
+                return true;
+            } catch(err) {
+                if (err.name === 'NotAllowedError') {
+                    alert('Microphone permission was denied.\n\nTo fix:\n1. Tap the lock/site info icon in the address bar\n2. Find "Microphone" and set to "Allow"\n3. Refresh this page');
+                } else if (err.name === 'NotFoundError') {
+                    alert('No microphone found on this device.');
+                } else {
+                    alert('Microphone error: ' + err.message);
+                }
+                return false;
+            }
+        }
+
+        function toggleRecord() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                // Request permission first, then start
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    document.getElementById('detectBtn').disabled = false;
+                    stream.getTracks().forEach(t => t.stop());
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                document.getElementById('recordBtn').textContent = 'Stop Recording';
+                document.getElementById('recordBtn').classList.add('recording');
+                document.getElementById('visualizer').classList.add('recording');
+
+            } catch (err) {
+                console.error('Microphone error:', err);
+                let msg = 'Could not access microphone.\n\n';
+                if (err.name === 'NotAllowedError') {
+                    msg += 'Permission denied. To fix:\n';
+                    msg += '1. Tap the lock/site icon in the address bar\n';
+                    msg += '2. Find "Microphone" → set to "Allow"\n';
+                    msg += '3. Refresh the page\n\n';
+                    msg += 'On iPhone Safari: Settings → Safari → Microphone → Allow';
+                } else if (err.name === 'NotFoundError') {
+                    msg += 'No microphone detected on this device.';
+                } else {
+                    msg += 'Error: ' + err.message;
+                }
+                alert(msg);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            isRecording = false;
+            document.getElementById('recordBtn').textContent = 'Start Recording';
+            document.getElementById('recordBtn').classList.remove('recording');
+            document.getElementById('visualizer').classList.remove('recording');
+        }
+
+        async function analyzeAudio() {
+            if (!audioBlob) return;
+
+            const btn = document.getElementById('detectBtn');
+            btn.textContent = 'Analyzing...';
+            btn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', audioBlob, 'recording.wav');
+            formData.append('caller_id', 'mobile_user');
+            formData.append('call_type', 'regular_call');
+
+            try {
+                const resp = await fetch(`${serverUrl}/api/v1/detect`, {
+                    method: 'POST',
+                    headers: { 'X-API-Key': apiKey },
+                    body: formData
+                });
+
+                const data = await resp.json();
+                showResult(data);
+                addToHistory(data);
+            } catch (err) {
+                alert('Analysis failed: ' + err.message);
+            }
+
+            btn.textContent = 'Analyze Voice';
+            btn.disabled = false;
+        }
+
+        function showResult(data) {
+            const card = document.getElementById('resultCard');
+            const box = document.getElementById('resultBox');
+            card.style.display = 'block';
+
+            box.className = 'result-box';
+            if (data.risk_level === 'HIGH' || data.risk_level === 'MEDIUM') {
+                box.classList.add('synthetic');
+                document.getElementById('resultIcon').textContent = '🚨';
+            } else if (data.risk_level === 'LOW') {
+                box.classList.add('uncertain');
+                document.getElementById('resultIcon').textContent = '⚠️';
+            } else {
+                box.classList.add('genuine');
+                document.getElementById('resultIcon').textContent = '✅';
+            }
+
+            document.getElementById('resultLabel').textContent =
+                data.is_synthetic ? 'SYNTHETIC DETECTED' : 'GENUINE VOICE';
+            document.getElementById('resultScore').textContent =
+                (data.synthetic_probability * 100).toFixed(1) + '%';
+
+            const fill = document.getElementById('meterFill');
+            fill.style.width = (data.synthetic_probability * 100) + '%';
+            fill.style.background = data.risk_level === 'HIGH' ? '#ff4444' :
+                                   data.risk_level === 'MEDIUM' ? '#ffaa00' :
+                                   data.risk_level === 'LOW' ? '#ffcc00' : '#00ff88';
+
+            document.getElementById('resultDetail').textContent = data.recommendation;
+            document.getElementById('infoSynthProb').textContent =
+                (data.synthetic_probability * 100).toFixed(2) + '%';
+            document.getElementById('infoRiskLevel').textContent = data.risk_level;
+            document.getElementById('infoRiskLevel').style.color =
+                data.risk_level === 'HIGH' ? '#ff4444' :
+                data.risk_level === 'MEDIUM' ? '#ffaa00' : '#00ff88';
+            document.getElementById('infoRecommendation').textContent = data.recommendation;
+        }
+
+        function addToHistory(data) {
+            history.unshift({
+                time: new Date().toLocaleTimeString(),
+                score: data.synthetic_probability,
+                level: data.risk_level
+            });
+            if (history.length > 20) history.pop();
+
+            const list = document.getElementById('historyList');
+            list.innerHTML = history.map(h => `
+                <div class="history-item">
+                    <div class="time">${h.time}</div>
+                    <div class="risk ${h.level}">${h.level} - ${(h.score * 100).toFixed(1)}%</div>
+                </div>
+            `).join('');
+        }
+
+        function clearResult() {
+            document.getElementById('resultCard').style.display = 'none';
+            audioBlob = null;
+            document.getElementById('detectBtn').disabled = true;
+        }
+
+        // WebSocket Live Stream
+        function toggleStream() {
+            if (isStreaming) {
+                stopStream();
+            } else {
+                startStream();
+            }
+        }
+
+        async function startStream() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                const callerId = document.getElementById('callerIdInput').value || 'mobile_user';
+
+                ws = new WebSocket(
+                    `ws://${new URL(serverUrl).host}/ws/detect?caller_id=${callerId}&call_type=regular_call`
+                );
+
+                ws.onopen = () => {
+                    isStreaming = true;
+                    document.getElementById('streamBtn').textContent = 'Stop Stream';
+                    document.getElementById('streamBtn').classList.add('recording');
+
+                    const audioCtx = new AudioContext();
+                    const source = audioCtx.createMediaStreamSource(stream);
+                    const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+
+                    processor.onaudioprocess = (e) => {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            const inputData = e.inputBuffer.getChannelData(0);
+                            const int16 = new Int16Array(inputData.length);
+                            for (let i = 0; i < inputData.length; i++) {
+                                int16[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
+                            }
+                            ws.send(int16.buffer);
+                        }
+                    };
+
+                    source.connect(processor);
+                    processor.connect(audioCtx.destination);
+
+                    window._streamProcessor = processor;
+                    window._streamSource = source;
+                    window._audioCtx = audioCtx;
+                    window._mediaStream = stream;
+                };
+
+                ws.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'segment_result') {
+                        const div = document.getElementById('streamResults');
+                        const color = data.risk_level === 'HIGH' ? '#ff4444' :
+                                     data.risk_level === 'MEDIUM' ? '#ffaa00' : '#00ff88';
+                        div.innerHTML = `
+                            <div class="info-row">
+                                <span class="info-label">Segment ${data.segment_index}</span>
+                                <span class="info-value" style="color:${color}">
+                                    ${data.risk_level} (${(data.synthetic_probability * 100).toFixed(1)}%)
+                                </span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">Trend</span>
+                                <span class="info-value">${data.trend || 'stable'}</span>
+                            </div>
+                        `;
+                    } else if (data.type === 'alert') {
+                        alert(`ALERT: ${data.alert.message}`);
+                    } else if (data.type === 'stream_ended') {
+                        addToHistory({
+                            time: new Date().toLocaleTimeString(),
+                            score: data.final_risk_score,
+                            level: data.final_risk_level
+                        });
+                    }
+                };
+
+                ws.onerror = (err) => {
+                    console.error('WebSocket error:', err);
+                    stopStream();
+                };
+
+                ws.onclose = () => stopStream();
+
+            } catch (err) {
+                console.error('Stream error:', err);
+                let msg = 'Could not access microphone for streaming.\n\n';
+                if (err.name === 'NotAllowedError') {
+                    msg += 'Permission denied. Tap the lock icon in address bar → Microphone → Allow';
+                } else {
+                    msg += 'Error: ' + err.message;
+                }
+                alert(msg);
+            }
+        }
+
+        function stopStream() {
+            isStreaming = false;
+            document.getElementById('streamBtn').textContent = 'Start Live Stream';
+            document.getElementById('streamBtn').classList.remove('recording');
+
+            if (window._streamProcessor) window._streamProcessor.disconnect();
+            if (window._streamSource) window._streamSource.disconnect();
+            if (window._audioCtx) window._audioCtx.close();
+            if (window._mediaStream) window._mediaStream.getTracks().forEach(t => t.stop());
+            if (ws) {
+                try { ws.send(JSON.stringify({type: 'end_stream'})); } catch(e) {}
+                ws.close();
+            }
+        }
+    </script>
+</body>
+</html>

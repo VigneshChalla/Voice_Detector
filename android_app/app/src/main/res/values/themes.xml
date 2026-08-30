@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.VoiceDetector" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#7B2FF7</item>
+        <item name="colorPrimaryVariant">#5A1FB8</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#00D4FF</item>
+        <item name="colorSecondaryVariant">#00A8CC</item>
+        <item name="colorOnSecondary">#000000</item>
+        <item name="android:statusBarColor">#0A0A1A</item>
+        <item name="android:navigationBarColor">#0A0A1A</item>
+        <item name="android:windowBackground">#0A0A1A</item>
+    </style>
+</resources>

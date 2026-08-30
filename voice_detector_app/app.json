@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Voice Detector",
+    "slug": "voice-detector",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "This app needs microphone access to record and analyze voice for cloning detection."
+      }
+    },
+    "android": {
+      "permissions": [
+        "RECORD_AUDIO",
+        "INTERNET"
+      ],
+      "package": "com.voicedetector.app"
+    },
+    "plugins": [
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Voice Detector to access your microphone for voice analysis."
+        }
+      ]
+    ]
+  }
+}
