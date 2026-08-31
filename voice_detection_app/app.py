@@ -57,9 +57,17 @@ privacy_module = PrivacyComplianceModule()
 
 @app.on_event("startup")
 async def startup():
+    from voice_detection_app.api.routes import detector
+
     logger.info("=" * 60)
     logger.info("Voice Cloning Detection API v1.0.0")
     logger.info("=" * 60)
+
+    model_path = settings.model.model_path
+    logger.info("Loading model from: %s", model_path)
+    detector.load_model(model_path)
+    logger.info("Model loaded: %s", "YES" if detector.is_trained else "NO")
+
     logger.info("Edge inference: %s", "READY" if edge_engine.is_available else "UNAVAILABLE")
     logger.info("Speaker enrollments: %d", len(speaker_enrollment.list_speakers()))
     logger.info("Privacy: raw_audio=%s, anonymize=%s",
