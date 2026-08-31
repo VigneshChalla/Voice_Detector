@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SettingsScreen from './screens/SettingsScreen';
 import DetectionScreen from './screens/DetectionScreen';
+import LiveScreeningScreen from './screens/LiveScreeningScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -18,6 +19,7 @@ export default function App() {
       >
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="Detection" component={DetectionScreen} />
+        <Stack.Screen name="LiveScreening" component={LiveScreeningScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
