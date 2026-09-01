@@ -8,6 +8,7 @@ from voice_detection_app.models.detector import VoiceDetector
 from voice_detection_app.services.alert_service import AlertService
 from voice_detection_app.services.auth import APIKeyConfig, APIAuthMiddleware, auth_middleware
 from voice_detection_app.services.audio_processor import AudioProcessor
+from voice_detection_app.services.forensic_analyzer import analyze_forensic, hybrid_score
 from voice_detection_app.services.privacy import PrivacyComplianceModule
 from voice_detection_app.services.risk_scorer import RiskScorer
 from voice_detection_app.services.speaker.enrollment import CrossSessionConsistency, SpeakerEnrollment
@@ -37,6 +38,18 @@ class DetectionResponse(BaseModel):
     requires_secondary_verification: bool
     should_block_transaction: bool
     caller_id_hash: str = ""
+    # Hybrid forensic details
+    ml_probability: float = 0.0
+    forensic_score: float = 0.0
+    final_synthetic_percent: float = 0.0
+    final_human_percent: float = 0.0
+    human_similarity: float = 0.0
+    ai_similarity: float = 0.0
+    forensic_factors: dict = {}
+    dominant_clues: list = []
+    agreement: str = ""
+    confidence: float = 0.0
+    analysis_summary: str = ""
 
 
 class StreamingAnalysisResponse(BaseModel):
@@ -131,31 +144,67 @@ async def detect_voice(
     _, aggregated = audio_processor.process_audio(y)
     feature_vector = audio_processor.get_feature_vector(aggregated, target_length=64)
     prediction = detector.predict(feature_vector)
+    ml_prob = float(prediction["synthetic_probability"])
+
+    # Forensic multi-factor analysis (frequency stability, energy, spectral, etc.)
+    try:
+        forensic = analyze_forensic(y, sr)
+        forensic_score = float(forensic["forensic_score"])
+    except Exception as fe:
+        forensic = {"forensic_score": ml_prob, "factors": {}, "dominant_clues": [], "human_similarity": (1-ml_prob)*100, "ai_similarity": ml_prob*100}
+        forensic_score = ml_prob
+
+    # Hybrid: combine ML + forensic
+    hybrid = hybrid_score(ml_prob, forensic_score, ml_weight=0.55)
+    final_prob = float(hybrid["final_synthetic_prob"])
 
     context = {"caller_id": caller_id, "call_type": call_type}
-    risk = risk_scorer.compute_risk_score(prediction["synthetic_probability"], context)
+    risk = risk_scorer.compute_risk_score(final_prob, context)
 
     privacy_module.log_result(
         features=aggregated,
         risk_score=risk["risk_score"],
         risk_level=risk["risk_level"],
         caller_id=caller_id,
-        metadata={"call_type": call_type},
+        metadata={"call_type": call_type, "ml_prob": ml_prob, "forensic_score": forensic_score, "final_prob": final_prob},
     )
 
     if risk["risk_level"] in ("HIGH", "MEDIUM"):
         alert_service.create_alert(risk, {"caller_id": caller_id})
 
+    # Build human-readable summary
+    if hybrid["is_synthetic"]:
+        if hybrid["confidence"] > 60:
+            summary = f"Strong AI indicators ({hybrid['final_synthetic_percent']}% AI). " + "; ".join([c["interpretation"] for c in forensic.get("dominant_clues", [])[:2]])
+        else:
+            summary = f"Likely AI ({hybrid['final_synthetic_percent']}% AI) - moderate confidence. Top clue: {forensic.get('dominant_clues', [{}])[0].get('interpretation','') if forensic.get('dominant_clues') else ''}"
+    else:
+        if hybrid["confidence"] > 60:
+            summary = f"Strong human indicators ({hybrid['final_human_percent']}% human). " + "; ".join([c["interpretation"] for c in forensic.get("dominant_clues", [])[:2]])
+        else:
+            summary = f"Likely human ({hybrid['final_human_percent']}% human) - moderate confidence."
+
     return DetectionResponse(
-        synthetic_probability=prediction["synthetic_probability"],
-        genuine_probability=prediction["genuine_probability"],
-        is_synthetic=prediction["is_synthetic"],
+        synthetic_probability=final_prob,
+        genuine_probability=1.0 - final_prob,
+        is_synthetic=hybrid["is_synthetic"],
         risk_score=risk["risk_score"],
         risk_level=risk["risk_level"],
         recommendation=risk["recommendation"],
         requires_secondary_verification=risk["requires_secondary_verification"],
         should_block_transaction=risk["should_block_transaction"],
         caller_id_hash=privacy_result["caller_id_hash"],
+        ml_probability=round(ml_prob, 4),
+        forensic_score=round(forensic_score, 4),
+        final_synthetic_percent=hybrid["final_synthetic_percent"],
+        final_human_percent=hybrid["final_human_percent"],
+        human_similarity=round(forensic.get("human_similarity", (1-final_prob)*100), 1),
+        ai_similarity=round(forensic.get("ai_similarity", final_prob*100), 1),
+        forensic_factors=forensic.get("factors", {}),
+        dominant_clues=forensic.get("dominant_clues", []),
+        agreement=hybrid.get("agreement", ""),
+        confidence=hybrid.get("confidence", 0),
+        analysis_summary=summary,
     )
 
 

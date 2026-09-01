@@ -197,6 +197,67 @@ export default function DetectionScreen({ route, navigation }) {
               }
             ]} />
           </View>
+
+          {/* Similarity Breakdown */}
+          <View style={styles.similarityRow}>
+            <View style={styles.similarityBox}>
+              <Text style={styles.similarityLabel}>Human Similarity</Text>
+              <Text style={[styles.similarityValue, { color: '#00FF88' }]}>{(result.final_human_percent ?? (result.genuine_probability*100)).toFixed(1)}%</Text>
+            </View>
+            <View style={styles.similarityBox}>
+              <Text style={styles.similarityLabel}>AI Similarity</Text>
+              <Text style={[styles.similarityValue, { color: '#FF4444' }]}>{(result.final_synthetic_percent ?? (result.synthetic_probability*100)).toFixed(1)}%</Text>
+            </View>
+          </View>
+
+          {/* ML vs Forensic */}
+          {result.ml_probability !== undefined && (
+            <View style={styles.forensicRow}>
+              <View style={styles.forensicBox}>
+                <Text style={styles.forensicLabel}>ML Model</Text>
+                <Text style={styles.forensicValue}>{(result.ml_probability*100).toFixed(1)}% AI</Text>
+              </View>
+              <View style={styles.forensicBox}>
+                <Text style={styles.forensicLabel}>Forensic</Text>
+                <Text style={styles.forensicValue}>{(result.forensic_score*100).toFixed(1)}% AI</Text>
+              </View>
+              <View style={styles.forensicBox}>
+                <Text style={styles.forensicLabel}>Agreement</Text>
+                <Text style={[styles.forensicValue, { color: result.agreement==='AGREE' ? '#00FF88' : '#FFAA00' }]}>{result.agreement || '-'}</Text>
+              </View>
+            </View>
+          )}
+          {result.confidence !== undefined && (
+            <Text style={styles.confidenceText}>Confidence: {result.confidence}% | {result.analysis_summary}</Text>
+          )}
+
+          {/* Forensic Factors */}
+          {result.forensic_factors && Object.keys(result.forensic_factors).length > 0 && (
+            <View style={styles.factorsCard}>
+              <Text style={styles.factorsTitle}>🔬 Forensic Analysis (per factor)</Text>
+              {Object.entries(result.forensic_factors).map(([name, f]) => (
+                <View key={name} style={styles.factorRow}>
+                  <View style={styles.factorLeft}>
+                    <Text style={styles.factorName}>{name.replace(/_/g,' ')}</Text>
+                    <Text style={styles.factorInterp}>{f.interpretation}</Text>
+                  </View>
+                  <View style={styles.factorRight}>
+                    <Text style={[styles.factorPercent, { color: f.status==='AI' ? '#FF4444' : f.status==='HUMAN' ? '#00FF88' : '#FFAA00' }]}>{f.synthetic_percent}% AI</Text>
+                    <Text style={styles.factorStatus}>{f.status}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+          {result.dominant_clues && result.dominant_clues.length > 0 && (
+            <View style={styles.cluesBox}>
+              <Text style={styles.cluesTitle}>Top Clues:</Text>
+              {result.dominant_clues.map((c,i) => (
+                <Text key={i} style={styles.clueText}>• {c.factor}: {c.interpretation} ({c.confidence}% conf)</Text>
+              ))}
+            </View>
+          )}
+
           <Text style={styles.resultRecommendation}>
             {result.recommendation}
           </Text>
@@ -311,6 +372,27 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 3,
   },
+  similarityRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginVertical: 12, gap: 12 },
+  similarityBox: { flex: 1, backgroundColor: '#1A1A35', borderRadius: 10, padding: 12, alignItems: 'center' },
+  similarityLabel: { color: '#888', fontSize: 11, marginBottom: 4 },
+  similarityValue: { fontSize: 20, fontWeight: 'bold' },
+  forensicRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%', marginBottom: 12, gap: 8 },
+  forensicBox: { flex: 1, backgroundColor: '#1A1A35', borderRadius: 8, padding: 10, alignItems: 'center' },
+  forensicLabel: { color: '#888', fontSize: 10, marginBottom: 2 },
+  forensicValue: { color: '#FFF', fontSize: 12, fontWeight: '600' },
+  confidenceText: { color: '#AAA', fontSize: 11, textAlign: 'center', marginBottom: 12, fontStyle: 'italic' },
+  factorsCard: { width: '100%', backgroundColor: '#0F0F2A', borderRadius: 10, padding: 12, marginBottom: 12 },
+  factorsTitle: { color: '#7B2FF7', fontSize: 13, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
+  factorRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#1E1E3F' },
+  factorLeft: { flex: 2 },
+  factorName: { color: '#FFF', fontSize: 11, fontWeight: '600', textTransform: 'capitalize' },
+  factorInterp: { color: '#888', fontSize: 10, marginTop: 2 },
+  factorRight: { alignItems: 'flex-end', justifyContent: 'center' },
+  factorPercent: { fontSize: 12, fontWeight: 'bold' },
+  factorStatus: { fontSize: 10, color: '#666', marginTop: 2 },
+  cluesBox: { width: '100%', backgroundColor: '#1A1A35', borderRadius: 8, padding: 12, marginBottom: 12 },
+  cluesTitle: { color: '#FFAA00', fontSize: 11, fontWeight: 'bold', marginBottom: 6 },
+  clueText: { color: '#CCC', fontSize: 11, marginBottom: 4, lineHeight: 14 },
   resultRecommendation: {
     fontSize: 13,
     color: '#AAA',

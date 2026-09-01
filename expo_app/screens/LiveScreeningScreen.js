@@ -136,6 +136,13 @@ export default function LiveScreeningScreen({ route }) {
         is_synthetic: data.is_synthetic,
         recommendation: data.recommendation,
         timestamp: new Date().toLocaleTimeString(),
+        ml_prob: data.ml_probability,
+        forensic_score: data.forensic_score,
+        human_sim: data.final_human_percent,
+        ai_sim: data.final_synthetic_percent,
+        factors: data.forensic_factors,
+        clues: data.dominant_clues,
+        summary: data.analysis_summary,
       };
 
       setSegmentResults(prev => [segmentResult, ...prev]);
@@ -351,12 +358,15 @@ export default function LiveScreeningScreen({ route }) {
       {/* Segment History */}
       {segmentResults.length > 0 && (
         <View style={styles.historyCard}>
-          <Text style={styles.historyTitle}>Segment History</Text>
+          <Text style={styles.historyTitle}>Segment History (tap for forensic)</Text>
           {segmentResults.map((item, index) => (
             <View key={index} style={[styles.historyItem, { borderLeftColor: getRiskColor(item.risk_level) }]}>
               <View style={styles.historyLeft}>
                 <Text style={styles.historyIndex}>#{item.index}</Text>
                 <Text style={styles.historyTime}>{item.timestamp}</Text>
+                {item.ml_prob !== undefined && (
+                  <Text style={styles.historySub}>ML {(item.ml_prob*100).toFixed(0)}% | For {(item.forensic_score*100).toFixed(0)}%</Text>
+                )}
               </View>
               <View style={styles.historyCenter}>
                 <Text style={[styles.historyScore, { color: getRiskColor(item.risk_level) }]}>
@@ -365,12 +375,32 @@ export default function LiveScreeningScreen({ route }) {
                 <Text style={[styles.historyRisk, { color: getRiskColor(item.risk_level) }]}>
                   {item.risk_level}
                 </Text>
+                {item.ai_sim !== undefined && (
+                  <Text style={styles.historySim}>H:{item.human_sim?.toFixed(0)}% A:{item.ai_sim?.toFixed(0)}%</Text>
+                )}
               </View>
               <Text style={styles.historyIcon}>
                 {item.is_synthetic ? '🚨' : '✅'}
               </Text>
             </View>
           ))}
+          {segmentResults[0]?.factors && (
+            <View style={styles.forensicExpand}>
+              <Text style={styles.forensicExpandTitle}>🔬 Latest Forensic Breakdown</Text>
+              {Object.entries(segmentResults[0].factors).slice(0,4).map(([n,f])=>(
+                <View key={n} style={styles.miniFactor}>
+                  <Text style={styles.miniFactorName}>{n.replace(/_/g,' ')}</Text>
+                  <Text style={[styles.miniFactorVal, {color: f.status==='AI' ? '#FF4444' : f.status==='HUMAN' ? '#00FF88' : '#FFAA00'}]}>{f.synthetic_percent}% AI • {f.status}</Text>
+                </View>
+              ))}
+              {segmentResults[0].clues && segmentResults[0].clues[0] && (
+                <Text style={styles.clueLine}>💡 {segmentResults[0].clues[0].interpretation}</Text>
+              )}
+              {segmentResults[0].summary && (
+                <Text style={styles.summaryLine}>{segmentResults[0].summary}</Text>
+              )}
+            </View>
+          )}
         </View>
       )}
     </ScrollView>
@@ -588,4 +618,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginLeft: 8,
   },
+  historySub: { color: '#666', fontSize: 9, marginTop: 2 },
+  historySim: { color: '#888', fontSize: 9, marginTop: 1 },
+  forensicExpand: { marginTop: 12, backgroundColor: '#0F0F2A', borderRadius: 10, padding: 12 },
+  forensicExpandTitle: { color: '#7B2FF7', fontSize: 12, fontWeight: 'bold', marginBottom: 8, textAlign: 'center' },
+  miniFactor: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: '#1E1E3F' },
+  miniFactorName: { color: '#FFF', fontSize: 10, textTransform: 'capitalize' },
+  miniFactorVal: { fontSize: 10, fontWeight: 'bold' },
+  clueLine: { color: '#FFAA00', fontSize: 11, marginTop: 8, fontStyle: 'italic' },
+  summaryLine: { color: '#AAA', fontSize: 10, marginTop: 6, textAlign: 'center' },
 });
