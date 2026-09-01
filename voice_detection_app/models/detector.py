@@ -6,22 +6,24 @@ from voice_detection_app.config import settings
 
 
 class VoiceAuthenticityNet(nn.Module):
-    """Neural network for classifying voice as genuine or synthetic/cloned."""
+    """Neural network for classifying voice as genuine or synthetic/cloned.
+    
+    V2 architecture: 128-dim input, GELU activation, deeper layers.
+    """
 
-    def __init__(self, input_size: int = 64, hidden_sizes: list[int] | None = None, dropout: float = 0.3):
+    def __init__(self, input_size: int = 128, hidden_sizes: list[int] | None = None, dropout: float = 0.3):
         super().__init__()
         if hidden_sizes is None:
-            hidden_sizes = [256, 128, 64]
+            hidden_sizes = [512, 512, 256, 256, 128, 64]
 
         layers = []
         prev_size = input_size
-        for h_size in hidden_sizes:
-            layers.extend([
-                nn.Linear(prev_size, h_size),
-                nn.BatchNorm1d(h_size),
-                nn.ReLU(),
-                nn.Dropout(dropout),
-            ])
+        for i, h_size in enumerate(hidden_sizes):
+            layers.append(nn.Linear(prev_size, h_size))
+            layers.append(nn.BatchNorm1d(h_size))
+            layers.append(nn.GELU())
+            if i < len(hidden_sizes) - 1:
+                layers.append(nn.Dropout(dropout))
             prev_size = h_size
 
         layers.append(nn.Linear(prev_size, 1))

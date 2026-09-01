@@ -141,8 +141,7 @@ async def detect_voice(
     if len(y) == 0:
         raise HTTPException(status_code=400, detail="No audio data extracted")
 
-    _, aggregated = audio_processor.process_audio(y)
-    feature_vector = audio_processor.get_feature_vector(aggregated, target_length=64)
+    feature_vector, metadata = audio_processor.process_audio(y)
     prediction = detector.predict(feature_vector)
     ml_prob = float(prediction["synthetic_probability"])
 
@@ -162,7 +161,7 @@ async def detect_voice(
     risk = risk_scorer.compute_risk_score(final_prob, context)
 
     privacy_module.log_result(
-        features=aggregated,
+        features=metadata,
         risk_score=risk["risk_score"],
         risk_level=risk["risk_level"],
         caller_id=caller_id,
