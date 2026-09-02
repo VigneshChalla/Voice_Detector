@@ -11,7 +11,7 @@ class VoiceAuthenticityNet(nn.Module):
     V2 architecture: 128-dim input, GELU activation, deeper layers.
     """
 
-    def __init__(self, input_size: int = 128, hidden_sizes: list[int] | None = None, dropout: float = 0.3):
+    def __init__(self, input_size: int = 192, hidden_sizes: list[int] | None = None, dropout: float = 0.3):
         super().__init__()
         if hidden_sizes is None:
             hidden_sizes = [512, 512, 256, 256, 128, 64]

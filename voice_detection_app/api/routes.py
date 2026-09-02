@@ -154,7 +154,7 @@ async def detect_voice(
         forensic_score = ml_prob
 
     # Hybrid: combine ML + forensic
-    hybrid = hybrid_score(ml_prob, forensic_score, ml_weight=0.55)
+    hybrid = hybrid_score(ml_prob, forensic_score, ml_weight=0.70)
     final_prob = float(hybrid["final_synthetic_prob"])
 
     context = {"caller_id": caller_id, "call_type": call_type}

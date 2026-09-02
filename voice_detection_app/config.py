@@ -39,11 +39,12 @@ class AudioConfig:
 
 @dataclass
 class ModelConfig:
-    input_features: int = 128
+    input_features: int = 192
     hidden_sizes: list = field(default_factory=lambda: [512, 512, 256, 256, 128, 64])
     num_classes: int = 2
     dropout: float = 0.3
-    model_path: str = "voice_detection_app/trained_model_v2.pth"
+    model_path: str = "voice_detection_app/trained_model_v3.pth"
+    scaler_path: str = "voice_detection_app/scaler_v3.npz"
 
 
 @dataclass
@@ -79,9 +80,9 @@ class SpeakerConfig:
 
 @dataclass
 class EdgeConfig:
-    onnx_path: str = "voice_detection_app/trained_model_v2.onnx"
-    torchscript_path: str = "voice_detection_app/trained_model_v2.pt"
-    quantized_path: str = "voice_detection_app/trained_model_v2_quantized.pt"
+    onnx_path: str = "voice_detection_app/trained_model_v3.onnx"
+    torchscript_path: str = "voice_detection_app/trained_model_v3.pt"
+    quantized_path: str = "voice_detection_app/trained_model_v3_quantized.pt"
     opset_version: int = 14
     enable_quantization: bool = True
 
@@ -129,7 +130,7 @@ def load_config() -> AppConfig:
     """Load configuration from environment variables with defaults."""
     return AppConfig(
         model=ModelConfig(
-            model_path=_env("VD_MODEL_PATH", "voice_detection_app/trained_model_v2.pth"),
+            model_path=_env("VD_MODEL_PATH", "voice_detection_app/trained_model_v3.pth"),
         ),
         risk=RiskConfig(
             high_risk_threshold=_env_float("VD_HIGH_RISK_THRESHOLD", 0.75),

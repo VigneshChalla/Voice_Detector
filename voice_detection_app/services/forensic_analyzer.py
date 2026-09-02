@@ -1,208 +1,165 @@
-"""Forensic voice analysis v2 - multi-factor AI detection with empirically-calibrated features.
-
-Calibrated from find_best_features.py analysis of 40 LibriSpeech + 40 WaveFake
-(11,666 files total, top 10 features by separation score).
-"""
+"""Forensic v3 - 15-factor Tier-2 analysis calibrated on 100 files (50 genuine / 50 synthetic)."""
 import numpy as np
 import librosa
 
-
-# Empirical calibration from find_best_features.py (11,666 files)
-# separation = |genuine_mean - synthetic_mean| / (genuine_std + synthetic_std)
+# Calibrated from find_best_v3.py (50 genuine Libra+WaveFake vs 50 WaveFake synthetic)
 CALIBRATION = {
-    # scon_std: synthetic=12.060+-0.311, genuine=8.556+-3.668, sep=1.76
-    "scon_std":           {"genuine_mean": 8.556,  "synthetic_mean": 12.060, "higher_is_genuine": False},
-    # f0_mean: synthetic=246.940+-11.048, genuine=180.335+-65.522, sep=1.74
-    "f0_mean":            {"genuine_mean": 180.335, "synthetic_mean": 246.940, "higher_is_genuine": False},
-    # formant1_mean: genuine=1781.480+-266.812, synthetic=1529.925+-28.925, sep=1.70
-    "formant1_mean":      {"genuine_mean": 1781.480, "synthetic_mean": 1529.925, "higher_is_genuine": True},
-    # mfcc_mean: genuine=-14.219+-5.451, synthetic=-19.497+-0.887, sep=1.67
-    "mfcc_mean":          {"genuine_mean": -14.219, "synthetic_mean": -19.497, "higher_is_genuine": True},
-    # harmonic_prominence: genuine=0.310+-0.118, synthetic=0.194+-0.028, sep=1.59
-    "harmonic_prominence":{"genuine_mean": 0.310,  "synthetic_mean": 0.194,  "higher_is_genuine": True},
-    # scon_mean: genuine=21.188+-3.701, synthetic=24.448+-0.489, sep=1.56
-    "scon_mean":          {"genuine_mean": 21.188, "synthetic_mean": 24.448, "higher_is_genuine": False},
-    # silence_ratio: genuine=0.162+-0.097, synthetic=0.079+-0.014, sep=1.50
-    "silence_ratio":      {"genuine_mean": 0.162,  "synthetic_mean": 0.079,  "higher_is_genuine": True},
-    # sb_cv: genuine=0.264+-0.065, synthetic=0.320+-0.015, sep=1.40
-    "sb_cv":              {"genuine_mean": 0.264,  "synthetic_mean": 0.320,  "higher_is_genuine": False},
-    # f0_std: genuine=46.526+-19.935, synthetic=63.652+-4.712, sep=1.39
-    "f0_std":             {"genuine_mean": 46.526, "synthetic_mean": 63.652, "higher_is_genuine": False},
-    # formant_range: genuine=2799.053+-527.092, synthetic=2380.602+-81.394, sep=1.38
-    "formant_range":      {"genuine_mean": 2799.053, "synthetic_mean": 2380.602, "higher_is_genuine": True},
+    "harmonic_prominence": {"genuine_mean": 0.45, "synthetic_mean": 0.24, "higher_is_genuine": True},
+    "scon_std":            {"genuine_mean": 9.29, "synthetic_mean": 12.06, "higher_is_genuine": False},
+    "formant2_mean":       {"genuine_mean": 1121.19, "synthetic_mean": 833.81, "higher_is_genuine": True},
+    "f0_q75":              {"genuine_mean": 221.04, "synthetic_mean": 287.45, "higher_is_genuine": False},
+    "pause_mean_dur":      {"genuine_mean": 0.23, "synthetic_mean": 0.13, "higher_is_genuine": True},
+    "f0_mean":             {"genuine_mean": 192.70, "synthetic_mean": 244.38, "higher_is_genuine": False},
+    "mfcc_mean":           {"genuine_mean": -8.15, "synthetic_mean": -9.93, "higher_is_genuine": True},
+    "mfcc_3_mean":         {"genuine_mean": 12.29, "synthetic_mean": -3.18, "higher_is_genuine": True},
+    "scon_mean":           {"genuine_mean": 22.02, "synthetic_mean": 24.41, "higher_is_genuine": False},
+    "silence_ratio":       {"genuine_mean": 0.14, "synthetic_mean": 0.09, "higher_is_genuine": True},
+    "formant_range":       {"genuine_mean": 2712.91, "synthetic_mean": 2372.21, "higher_is_genuine": True},
+    "sb_cv":               {"genuine_mean": 0.28, "synthetic_mean": 0.32, "higher_is_genuine": False},
+    "mfcc_skew":           {"genuine_mean": -5.25, "synthetic_mean": -4.62, "higher_is_genuine": False},
+    "mfcc_kurt":           {"genuine_mean": 44.71, "synthetic_mean": 38.56, "higher_is_genuine": True},
+    "subcent_sb_0_1k":     {"genuine_mean": 471.05, "synthetic_mean": 525.73, "higher_is_genuine": False},
 }
 
 # Weights proportional to separation score
-TOTAL_SEP = sum(v["sep"] for v in [
-    {"sep": 1.76}, {"sep": 1.74}, {"sep": 1.70}, {"sep": 1.67}, {"sep": 1.59},
-    {"sep": 1.56}, {"sep": 1.50}, {"sep": 1.40}, {"sep": 1.39}, {"sep": 1.38},
-])
-FACTOR_WEIGHTS = {
-    "scon_std":            1.76 / TOTAL_SEP,
-    "f0_mean":             1.74 / TOTAL_SEP,
-    "formant1_mean":       1.70 / TOTAL_SEP,
-    "mfcc_mean":           1.67 / TOTAL_SEP,
-    "harmonic_prominence": 1.59 / TOTAL_SEP,
-    "scon_mean":           1.56 / TOTAL_SEP,
-    "silence_ratio":       1.50 / TOTAL_SEP,
-    "sb_cv":               1.40 / TOTAL_SEP,
-    "f0_std":              1.39 / TOTAL_SEP,
-    "formant_range":       1.38 / TOTAL_SEP,
+_seps = {
+    "harmonic_prominence": 0.79, "scon_std": 0.71, "formant2_mean": 0.69, "f0_q75": 0.68, "pause_mean_dur": 0.66,
+    "f0_mean": 0.65, "mfcc_mean": 0.62, "mfcc_3_mean": 0.60, "scon_mean": 0.60, "silence_ratio": 0.58,
+    "formant_range": 0.57, "sb_cv": 0.56, "mfcc_skew": 0.62, "mfcc_kurt": 0.60, "subcent_sb_0_1k": 0.53,
 }
-
+_total = sum(_seps.values())
+FACTOR_WEIGHTS = {k: v/_total for k,v in _seps.items()}
 
 def _score_factor(value: float, cal: dict) -> float:
-    """Map raw metric -> synthetic probability 0..1 via sigmoid centered at midpoint."""
-    g = cal["genuine_mean"]
-    s = cal["synthetic_mean"]
+    g = cal["genuine_mean"]; s = cal["synthetic_mean"]
     midpoint = (g + s) / 2.0
     scale = abs(s - g) / 4.0 + 1e-6
-    if cal["higher_is_genuine"]:
-        logit = (midpoint - value) / scale
-    else:
-        logit = (value - midpoint) / scale
+    logit = (midpoint - value) / scale if cal["higher_is_genuine"] else (value - midpoint) / scale
     logit = float(np.clip(logit, -10, 10))
     prob = 1.0 / (1.0 + np.exp(-logit))
     return float(np.clip(prob, 0.02, 0.98))
 
-
 def extract_forensic_metrics(y: np.ndarray, sr: int = 16000) -> dict:
-    """Extract raw forensic metrics from audio."""
     metrics = {}
-
-    # === F0 via pyin (more accurate than piptrack) ===
+    # F0
     f0, voiced_flag, voiced_probs = librosa.pyin(y, fmin=60, fmax=500, sr=sr)
     f0_clean = f0[~np.isnan(f0)]
     if len(f0_clean) < 10:
         f0_clean = np.array([120.0])
     metrics["f0_mean"] = float(np.mean(f0_clean))
+    metrics["f0_q75"] = float(np.percentile(f0_clean, 75))
     metrics["f0_std"] = float(np.std(f0_clean))
-    metrics["f0_cv"] = float(np.std(f0_clean) / (np.mean(f0_clean) + 1e-6))
-    metrics["f0_range"] = float(np.ptp(f0_clean))
-
-    # === Spectral centroid ===
-    sc = librosa.feature.spectral_centroid(y=y, sr=sr)[0]
-    metrics["sc_mean"] = float(np.mean(sc))
-    metrics["sc_std"] = float(np.std(sc))
-    metrics["sc_cv"] = float(np.std(sc) / (np.mean(sc) + 1e-6))
-
-    # === Spectral bandwidth ===
-    sb = librosa.feature.spectral_bandwidth(y=y, sr=sr)[0]
-    metrics["sb_mean"] = float(np.mean(sb))
-    metrics["sb_std"] = float(np.std(sb))
-    metrics["sb_cv"] = float(np.std(sb) / (np.mean(sb) + 1e-6))
-
-    # === Spectral contrast ===
-    scon = librosa.feature.spectral_contrast(y=y, sr=sr)
-    metrics["scon_mean"] = float(np.mean(scon))
-    metrics["scon_std"] = float(np.std(scon))
-
-    # === Formants via LPC ===
+    # Formants
     try:
         order = 2 + sr // 1000
         a = librosa.lpc(y, order=order)
         roots = np.roots(a)
-        roots = roots[np.imag(roots) >= 0]
-        angles = np.arctan2(np.imag(roots), np.real(roots))
-        freqs = sorted(angles * (sr / (2 * np.pi)))
-        freqs = [f for f in freqs if 90 < f < sr / 2 - 90][:4]
-        if len(freqs) >= 2:
-            metrics["formant1_mean"] = float(freqs[0])
-            metrics["formant_range"] = float(np.ptp(freqs))
-            metrics["formant_spread"] = float(np.std(freqs))
+        roots = [r for r in roots if np.imag(r) >= 0]
+        angs = np.arctan2(np.imag(roots), np.real(roots))
+        freqs_f = sorted([a * sr / (2*np.pi) for a in angs])
+        bw = [-np.log(abs(r)) * sr / np.pi for r in roots]
+        freqs_f = [(f,b) for f,b in zip(freqs_f, bw) if 90 < f < sr/2 - 90]
+        freqs_f = sorted(freqs_f)[:4]
+        if len(freqs_f) >= 2:
+            f_vals = [f for f,b in freqs_f]
+            metrics["formant2_mean"] = float(sorted(f_vals)[1] if len(f_vals)>1 else f_vals[0])
+            metrics["formant_range"] = float(np.ptp(f_vals))
         else:
-            metrics["formant1_mean"] = 1500.0
-            metrics["formant_range"] = 2500.0
-            metrics["formant_spread"] = 100.0
+            metrics["formant2_mean"] = 1000.0; metrics["formant_range"] = 2500.0
     except:
-        metrics["formant1_mean"] = 1500.0
-        metrics["formant_range"] = 2500.0
-        metrics["formant_spread"] = 100.0
-
-    # === MFCC ===
-    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=20)
-    metrics["mfcc_mean"] = float(np.mean(mfcc))
-    metrics["mfcc_std"] = float(np.std(mfcc))
-    mfcc_delta = librosa.feature.delta(mfcc)
-    metrics["mfcc_delta_std"] = float(np.std(mfcc_delta))
-
-    # === Harmonic prominence ===
+        metrics["formant2_mean"] = 1000.0; metrics["formant_range"] = 2500.0
+    # Spectral contrast
+    scon = librosa.feature.spectral_contrast(y=y, sr=sr)
+    metrics["scon_mean"] = float(np.mean(scon)); metrics["scon_std"] = float(np.std(scon))
+    sb = librosa.feature.spectral_bandwidth(y=y, sr=sr)[0]
+    metrics["sb_cv"] = float(np.std(sb) / (np.mean(sb) + 1e-6))
+    # Harmonic prominence
     S = np.abs(librosa.stft(y, n_fft=2048, hop_length=512))
-    S_half = S[:S.shape[0] // 2, :]
+    S_mean = np.mean(S, axis=1)
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
+    S_half = S[:S.shape[0]//2, :]
+    freqs_half = freqs[:S_half.shape[0]]
     f0_est = metrics["f0_mean"]
     if f0_est > 60:
         harm_mask = np.zeros(S_half.shape[0], dtype=bool)
-        for i in range(S_half.shape[0]):
-            freq = i * sr / (2 * S_half.shape[0])
-            for h in range(1, 10):
-                if abs(freq - h * f0_est) < 40:
-                    harm_mask[i] = True
-                    break
-        S_harm = S_half[harm_mask]
-        S_noise = S_half[~harm_mask]
-        harm_e = float(np.sum(S_harm ** 2))
-        noise_e = float(np.sum(S_noise ** 2))
-        metrics["harmonic_prominence"] = harm_e / (harm_e + noise_e + 1e-10)
+        for i, freq in enumerate(freqs_half):
+            for h in range(1, 12):
+                if abs(freq - h * f0_est) < 35:
+                    harm_mask[i] = True; break
+        S_harm = S_half[harm_mask]; S_noise = S_half[~harm_mask]
+        harm_e = np.sum(S_harm**2); noise_e = np.sum(S_noise**2)
+        metrics["harmonic_prominence"] = float(harm_e / (harm_e + noise_e + 1e-10))
     else:
         metrics["harmonic_prominence"] = 0.3
-
-    # === Silence ratio ===
-    rms = librosa.feature.rms(y=y)[0]
-    metrics["rms_mean"] = float(np.mean(rms))
-    metrics["rms_cv"] = float(np.std(rms) / (np.mean(rms) + 1e-6))
-    threshold = np.mean(rms) * 0.1
+    # MFCC 40
+    mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=40)
+    metrics["mfcc_mean"] = float(np.mean(mfcc))
+    metrics["mfcc_skew"] = float(((mfcc - np.mean(mfcc))**3).mean() / (np.std(mfcc)**3 + 1e-9))
+    metrics["mfcc_kurt"] = float(((mfcc - np.mean(mfcc))**4).mean() / (np.std(mfcc)**4 + 1e-9))
+    metrics["mfcc_3_mean"] = float(np.mean(mfcc[2]))
+    # Subcent 0-1k
+    total_energy = np.sum(S_mean) + 1e-9
+    idx = np.where((freqs >= 0) & (freqs < 1000))[0]
+    if len(idx)>0:
+        e = np.sum(S_mean[idx]) + 1e-9
+        c = np.sum(freqs[idx] * S_mean[idx]) / e
+        metrics["subcent_sb_0_1k"] = float(c)
+    else:
+        metrics["subcent_sb_0_1k"] = 500.0
+    # Pause / silence
+    rms = librosa.feature.rms(y=y, frame_length=2048, hop_length=512)[0]
+    threshold = np.mean(rms) * 0.12
     silent = rms < threshold
     metrics["silence_ratio"] = float(np.mean(silent))
-
-    # === Phase ===
+    sil_len = 0; pauses = []
+    for v in silent:
+        if v:
+            sil_len += 1
+        else:
+            if sil_len > 0:
+                pauses.append(sil_len * 512 / sr)
+                sil_len = 0
+    if sil_len > 0:
+        pauses.append(sil_len * 512 / sr)
+    metrics["pause_mean_dur"] = float(np.mean(pauses)) if pauses else 0.0
+    # Phase
     phase = np.angle(librosa.stft(y, n_fft=2048, hop_length=512))
     pd = np.diff(phase, axis=1)
-    metrics["pd_std"] = float(np.std(np.abs(pd)))
-
-    # === ZCR ===
+    metrics["phase_diff_std"] = float(np.std(np.abs(pd)))
     zcr = librosa.feature.zero_crossing_rate(y)[0]
     metrics["zcr_mean"] = float(np.mean(zcr))
-
-    # === Spectral rolloff ===
-    rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr)[0]
-    metrics["rolloff_std"] = float(np.std(rolloff))
-
     return metrics
 
-
 INTERPRETATIONS = {
-    "scon_std":            lambda v, s: "Unstable spectral contrast (AI-like)" if s > 0.6 else "Stable spectral contrast (human-like)" if s < 0.4 else "Moderate spectral contrast",
-    "f0_mean":             lambda v, s: "High pitch center (AI-like)" if s > 0.6 else "Natural pitch center (human-like)" if s < 0.4 else "Moderate pitch center",
-    "formant1_mean":       lambda v, s: "Narrow formant resonance (AI-like)" if s > 0.6 else "Wide formant resonance (human-like)" if s < 0.4 else "Moderate formant resonance",
-    "mfcc_mean":           lambda v, s: "Atypical spectral envelope (AI-like)" if s > 0.6 else "Natural spectral envelope (human-like)" if s < 0.4 else "Moderate spectral envelope",
-    "harmonic_prominence": lambda v, s: "Weak harmonic structure (AI-like)" if s > 0.6 else "Strong harmonic structure (human-like)" if s < 0.4 else "Moderate harmonic structure",
-    "scon_mean":           lambda v, s: "High spectral contrast (AI-like)" if s > 0.6 else "Low spectral contrast (human-like)" if s < 0.4 else "Moderate spectral contrast",
-    "silence_ratio":       lambda v, s: "Few natural pauses (AI-like)" if s > 0.6 else "Natural pause patterns (human-like)" if s < 0.4 else "Moderate pause patterns",
-    "sb_cv":               lambda v, s: "Unstable bandwidth (AI-like)" if s > 0.6 else "Stable bandwidth (human-like)" if s < 0.4 else "Moderate bandwidth",
-    "f0_std":              lambda v, s: "High pitch jitter (AI-like)" if s > 0.6 else "Natural pitch variation (human-like)" if s < 0.4 else "Moderate pitch variation",
-    "formant_range":       lambda v, s: "Narrow formant range (AI-like)" if s > 0.6 else "Wide formant range (human-like)" if s < 0.4 else "Moderate formant range",
+    "harmonic_prominence": lambda v,s: "Strong harmonic structure (human-like)" if s < 0.4 else "Weak harmonic structure (AI-like)" if s > 0.6 else "Moderate harmonic structure",
+    "scon_std": lambda v,s: "Stable spectral contrast (human-like)" if s < 0.4 else "Unstable spectral contrast (AI-like)" if s > 0.6 else "Moderate spectral contrast",
+    "formant2_mean": lambda v,s: "Wide vocal tract resonance (human-like)" if s < 0.4 else "Narrow resonance (AI-like)" if s > 0.6 else "Moderate resonance",
+    "f0_q75": lambda v,s: "Natural pitch ceiling (human-like)" if s < 0.4 else "High pitch ceiling (AI-like)" if s > 0.6 else "Moderate pitch ceiling",
+    "pause_mean_dur": lambda v,s: "Natural pauses (human-like)" if s < 0.4 else "Short/unnatural pauses (AI-like)" if s > 0.6 else "Moderate pauses",
+    "f0_mean": lambda v,s: "Natural pitch center (human-like)" if s < 0.4 else "High pitch center (AI-like)" if s > 0.6 else "Moderate pitch center",
+    "mfcc_mean": lambda v,s: "Natural spectral envelope (human-like)" if s < 0.4 else "Atypical envelope (AI-like)" if s > 0.6 else "Moderate envelope",
+    "mfcc_3_mean": lambda v,s: "Natural cepstral structure (human-like)" if s < 0.4 else "Atypical cepstral (AI-like)" if s > 0.6 else "Moderate cepstral",
+    "scon_mean": lambda v,s: "Low spectral contrast (human-like)" if s < 0.4 else "High contrast (AI-like)" if s > 0.6 else "Moderate contrast",
+    "silence_ratio": lambda v,s: "Natural pause patterns (human-like)" if s < 0.4 else "Few pauses (AI-like)" if s > 0.6 else "Moderate pauses",
+    "formant_range": lambda v,s: "Wide formant range (human-like)" if s < 0.4 else "Narrow range (AI-like)" if s > 0.6 else "Moderate range",
+    "sb_cv": lambda v,s: "Stable bandwidth (human-like)" if s < 0.4 else "Unstable bandwidth (AI-like)" if s > 0.6 else "Moderate bandwidth",
+    "mfcc_skew": lambda v,s: "Natural cepstral skew (human-like)" if s < 0.4 else "Skewed cepstral (AI-like)" if s > 0.6 else "Moderate skew",
+    "mfcc_kurt": lambda v,s: "Natural cepstral kurtosis (human-like)" if s < 0.4 else "Flat kurtosis (AI-like)" if s > 0.6 else "Moderate kurtosis",
+    "subcent_sb_0_1k": lambda v,s: "Natural low-freq centroid (human-like)" if s < 0.4 else "High low-freq centroid (AI-like)" if s > 0.6 else "Moderate centroid",
 }
 
-
 def analyze_forensic(y: np.ndarray, sr: int = 16000) -> dict:
-    """
-    Return detailed forensic breakdown with empirically-calibrated factors.
-    """
     raw = extract_forensic_metrics(y, sr)
     factors = {}
-    weighted_sum = 0.0
-    weight_total = 0.0
-
+    weighted_sum = 0.0; weight_total = 0.0
     for name, weight in FACTOR_WEIGHTS.items():
         if name not in raw:
             continue
-        val = raw[name]
-        cal = CALIBRATION[name]
+        val = raw[name]; cal = CALIBRATION[name]
         syn_score = _score_factor(val, cal)
         human_score = 1.0 - syn_score
-        interp = INTERPRETATIONS.get(name, lambda v, s: "AI-like" if s > 0.6 else "Human-like" if s < 0.4 else "Inconclusive")(val, syn_score)
+        interp = INTERPRETATIONS.get(name, lambda v,s: "AI-like" if s>0.6 else "Human-like" if s<0.4 else "Inconclusive")(val, syn_score)
         status = "AI" if syn_score > 0.6 else "HUMAN" if syn_score < 0.4 else "UNCLEAR"
-
         factors[name] = {
             "raw_value": round(float(val), 4),
             "synthetic_score": round(syn_score, 4),
@@ -213,58 +170,41 @@ def analyze_forensic(y: np.ndarray, sr: int = 16000) -> dict:
             "interpretation": interp,
             "status": status,
         }
-        weighted_sum += syn_score * weight
-        weight_total += weight
-
+        weighted_sum += syn_score * weight; weight_total += weight
     forensic_score = weighted_sum / (weight_total + 1e-9)
     forensic_score = float(np.clip(forensic_score, 0.02, 0.98))
-
-    human_similarity = (1 - forensic_score) * 100
-    ai_similarity = forensic_score * 100
-
-    # Dominant clues: top 3 factors where score is most extreme
+    # Dominant clues
     sorted_factors = sorted(factors.items(), key=lambda x: abs(x[1]["synthetic_score"] - 0.5), reverse=True)
     dominant = []
     for fname, fdata in sorted_factors[:3]:
-        dominant.append({
-            "factor": fname,
-            "status": fdata["status"],
-            "confidence": round(abs(fdata["synthetic_score"] - 0.5) * 200, 1),
-            "interpretation": fdata["interpretation"],
-        })
-
+        dominant.append({"factor": fname, "status": fdata["status"], "confidence": round(abs(fdata["synthetic_score"] - 0.5) * 200, 1), "interpretation": fdata["interpretation"]})
     return {
         "forensic_score": round(forensic_score, 4),
         "forensic_synthetic_percent": round(forensic_score * 100, 1),
         "forensic_human_percent": round((1 - forensic_score) * 100, 1),
-        "human_similarity": round(human_similarity, 1),
-        "ai_similarity": round(ai_similarity, 1),
+        "human_similarity": round((1 - forensic_score) * 100, 1),
+        "ai_similarity": round(forensic_score * 100, 1),
         "factors": factors,
         "dominant_clues": dominant,
         "raw_metrics": {k: round(float(v), 4) for k, v in raw.items()},
         "is_synthetic_forensic": forensic_score > 0.5,
     }
 
-
-def hybrid_score(ml_prob: float, forensic_score: float, ml_weight: float = 0.55) -> dict:
-    """
-    Combine ML and forensic scores.
-    ML weight 0.55, forensic 0.45 - forensic corrects ML bias on unseen TTS.
-    """
+def hybrid_score(ml_prob: float, forensic_score: float, ml_weight: float = 0.70) -> dict:
+    """ML dominates (AUC 0.996); forensic only adjusts when ML uncertain."""
     forensic_weight = 1.0 - ml_weight
     combined = ml_prob * ml_weight + forensic_score * forensic_weight
-    # Agreement boost
-    if (ml_prob > 0.6 and forensic_score > 0.6) or (ml_prob < 0.4 and forensic_score < 0.4):
+    # Agreement boost only when both confident
+    if (ml_prob > 0.7 and forensic_score > 0.65) or (ml_prob < 0.3 and forensic_score < 0.35):
         if combined > 0.5:
-            combined = min(0.98, combined + 0.08)
+            combined = min(0.98, combined + 0.05)
         else:
-            combined = max(0.02, combined - 0.08)
-    # Forensic override for strong signals
-    if forensic_score > 0.75 and ml_prob < 0.4:
-        combined = max(combined, 0.62)
-    if forensic_score < 0.25 and ml_prob > 0.6:
-        combined = min(combined, 0.38)
-
+            combined = max(0.02, combined - 0.05)
+    # Forensic override ONLY when ML is uncertain (0.15-0.85), not when ML is extreme
+    if forensic_score > 0.80 and 0.15 < ml_prob < 0.55:
+        combined = max(combined, 0.60)
+    if forensic_score < 0.20 and 0.45 < ml_prob < 0.85:
+        combined = min(combined, 0.40)
     combined = float(np.clip(combined, 0.02, 0.98))
     return {
         "final_synthetic_prob": round(combined, 4),
